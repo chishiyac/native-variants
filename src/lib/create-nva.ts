@@ -353,14 +353,41 @@ type ValidateColorKeys<
  */
 interface CreateNVATheme<
   D extends Record<string, string>,
-  K extends Record<string, string>
+  K extends Record<string, string>,
 > {
-  colors: {
+  /** 
+   * Colors configuration. Can be:
+   * - Flat object: { primary: "#000", background: "#fff" } (no dark mode)
+   * - Structured: { default: {...}, dark?: {...} } (with optional dark mode)
+   */
+  colors?: D | {
     /** Light theme colors (default) */
     default: D;
-    /** Dark theme colors - must have exactly the same keys as default */
-    dark: ValidateColorKeys<D, K> extends true ? K : ValidateColorKeys<D, K>;
+    /** Dark theme colors (optional) - should have the same keys as default */
+    dark?: ValidateColorKeys<D, K> extends true ? K : ValidateColorKeys<D, K>;
   };
+  /** Spacing scale tokens (merged with Tailwind defaults) */
+  spacing?: Record<string, number>;
+  /** Font size scale tokens (merged with Tailwind defaults) */
+  fontSizes?: Record<string, number>;
+  /** Border radius scale tokens (merged with Tailwind defaults) */
+  radii?: Record<string, number>;
+  /** Shadow definition tokens (merged with Tailwind defaults) */
+  shadows?: Record<string, any>;
+  /** Z-index scale tokens (merged with Tailwind defaults) */
+  zIndex?: Record<string, number>;
+  /** Opacity scale tokens (merged with Tailwind defaults) */
+  opacity?: Record<string, number>;
+  /** Line height scale tokens (merged with Tailwind defaults) */
+  lineHeights?: Record<string, number | string>;
+  /** Font weight scale tokens (merged with Tailwind defaults) */
+  fontWeights?: Record<string, string>;
+  /** Letter spacing scale tokens (merged with Tailwind defaults) */
+  letterSpacing?: Record<string, number>;
+  /** Border width scale tokens (merged with Tailwind defaults) */
+  borderWidths?: Record<string, number>;
+  /** Animation duration scale tokens (merged with Tailwind defaults) */
+  durations?: Record<string, number>;
 }
 
 /**
@@ -566,8 +593,35 @@ export function createNVA<
   const inputTheme = options?.theme;
   const inputUtils = (options?.utils ?? {}) as U;
 
-  // Extract colors from default scheme (light mode)
-  const userColors = (inputTheme?.colors?.default ?? {}) as D;
+  // Helper to detect if colors is structured (has default/dark) or flat
+  function isStructuredColors(colors: any): colors is { default: Record<string, string>; dark?: Record<string, string> } {
+    return colors && typeof colors === "object" && "default" in colors;
+  }
+
+  // Extract colors - handle both flat and structured formats
+  let userColors: D;
+  let colorSchemeConfig: ColorSchemeConfig<D> | undefined;
+
+  if (inputTheme?.colors) {
+    if (isStructuredColors(inputTheme.colors)) {
+      // Structured: { default: {...}, dark?: {...} }
+      userColors = inputTheme.colors.default as D;
+      colorSchemeConfig = {
+        default: inputTheme.colors.default as D,
+        dark: inputTheme.colors.dark as D | undefined,
+      };
+    } else {
+      // Flat: { primary: "#000", ... }
+      userColors = inputTheme.colors as D;
+      colorSchemeConfig = {
+        default: inputTheme.colors as D,
+        dark: inputTheme.colors as D, // Use same colors for dark mode
+      };
+    }
+  } else {
+    userColors = {} as D;
+    colorSchemeConfig = undefined;
+  }
 
   // Merge user colors with Tailwind colors (user colors override defaults)
   const mergedColors = {
@@ -582,47 +636,47 @@ export function createNVA<
      * User colors override Tailwind colors if keys conflict.
      */
     colors: typeof tailwindColors & D;
-    /** Spacing scale (0, px, 0.5, 1, 2, 4, 8, etc.) */
-    spacing: typeof tailwindSpacing;
-    /** Font size scale (xs, sm, base, lg, xl, 2xl, etc.) */
-    fontSizes: typeof tailwindFontSizes;
-    /** Border radius scale (none, sm, md, lg, xl, full, etc.) */
-    radii: typeof tailwindRadii;
-    /** Shadow definitions for iOS and Android */
-    shadows: typeof tailwindShadows;
-    /** Z-index scale (0, 10, 20, 30, 40, 50) */
-    zIndex: typeof tailwindZIndex;
-    /** Opacity scale (0, 5, 10, ..., 95, 100) */
-    opacity: typeof tailwindOpacity;
-    /** Line height scale (3, 4, ..., 10, none, tight, normal, etc.) */
-    lineHeights: typeof tailwindLineHeights;
-    /** Font weight scale (thin, light, normal, medium, bold, etc.) */
-    fontWeights: typeof tailwindFontWeights;
-    /** Letter spacing scale (tighter, tight, normal, wide, wider, widest) */
-    letterSpacing: typeof tailwindLetterSpacing;
-    /** Border width scale (0, DEFAULT, 2, 4, 8) */
-    borderWidths: typeof tailwindBorderWidths;
-    /** Animation duration scale (0, 75, 100, 150, 200, 300, 500, 700, 1000) */
-    durations: typeof tailwindDurations;
+    /** Spacing scale (0, px, 0.5, 1, 2, 4, 8, etc.) - user overrides merged */
+    spacing: typeof tailwindSpacing & (CreateNVATheme<D, K>["spacing"] extends Record<string, number> ? CreateNVATheme<D, K>["spacing"] : {});
+    /** Font size scale (xs, sm, base, lg, xl, 2xl, etc.) - user overrides merged */
+    fontSizes: typeof tailwindFontSizes & (CreateNVATheme<D, K>["fontSizes"] extends Record<string, number> ? CreateNVATheme<D, K>["fontSizes"] : {});
+    /** Border radius scale (none, sm, md, lg, xl, full, etc.) - user overrides merged */
+    radii: typeof tailwindRadii & (CreateNVATheme<D, K>["radii"] extends Record<string, number> ? CreateNVATheme<D, K>["radii"] : {});
+    /** Shadow definitions for iOS and Android - user overrides merged */
+    shadows: typeof tailwindShadows & (CreateNVATheme<D, K>["shadows"] extends Record<string, any> ? CreateNVATheme<D, K>["shadows"] : {});
+    /** Z-index scale (0, 10, 20, 30, 40, 50) - user overrides merged */
+    zIndex: typeof tailwindZIndex & (CreateNVATheme<D, K>["zIndex"] extends Record<string, number> ? CreateNVATheme<D, K>["zIndex"] : {});
+    /** Opacity scale (0, 5, 10, ..., 95, 100) - user overrides merged */
+    opacity: typeof tailwindOpacity & (CreateNVATheme<D, K>["opacity"] extends Record<string, number> ? CreateNVATheme<D, K>["opacity"] : {});
+    /** Line height scale (3, 4, ..., 10, none, tight, normal, etc.) - user overrides merged */
+    lineHeights: typeof tailwindLineHeights & (CreateNVATheme<D, K>["lineHeights"] extends Record<string, number | string> ? CreateNVATheme<D, K>["lineHeights"] : {});
+    /** Font weight scale (thin, light, normal, medium, bold, etc.) - user overrides merged */
+    fontWeights: typeof tailwindFontWeights & (CreateNVATheme<D, K>["fontWeights"] extends Record<string, string> ? CreateNVATheme<D, K>["fontWeights"] : {});
+    /** Letter spacing scale (tighter, tight, normal, wide, wider, widest) - user overrides merged */
+    letterSpacing: typeof tailwindLetterSpacing & (CreateNVATheme<D, K>["letterSpacing"] extends Record<string, number> ? CreateNVATheme<D, K>["letterSpacing"] : {});
+    /** Border width scale (0, DEFAULT, 2, 4, 8) - user overrides merged */
+    borderWidths: typeof tailwindBorderWidths & (CreateNVATheme<D, K>["borderWidths"] extends Record<string, number> ? CreateNVATheme<D, K>["borderWidths"] : {});
+    /** Animation duration scale (0, 75, 100, 150, 200, 300, 500, 700, 1000) - user overrides merged */
+    durations: typeof tailwindDurations & (CreateNVATheme<D, K>["durations"] extends Record<string, number> ? CreateNVATheme<D, K>["durations"] : {});
   };
 
   const resolvedTheme: ResolvedTheme = {
     colors: mergedColors,
-    spacing: defaultTokens.spacing,
-    fontSizes: defaultTokens.fontSizes,
-    radii: defaultTokens.radii,
-    shadows: defaultTokens.shadows,
-    zIndex: defaultTokens.zIndex,
-    opacity: defaultTokens.opacity,
-    lineHeights: defaultTokens.lineHeights,
-    fontWeights: defaultTokens.fontWeights,
-    letterSpacing: defaultTokens.letterSpacing,
-    borderWidths: defaultTokens.borderWidths,
-    durations: defaultTokens.durations,
+    spacing: { ...defaultTokens.spacing, ...(inputTheme?.spacing ?? {}) } as any,
+    fontSizes: { ...defaultTokens.fontSizes, ...(inputTheme?.fontSizes ?? {}) } as any,
+    radii: { ...defaultTokens.radii, ...(inputTheme?.radii ?? {}) } as any,
+    shadows: { ...defaultTokens.shadows, ...(inputTheme?.shadows ?? {}) } as any,
+    zIndex: { ...defaultTokens.zIndex, ...(inputTheme?.zIndex ?? {}) } as any,
+    opacity: { ...defaultTokens.opacity, ...(inputTheme?.opacity ?? {}) } as any,
+    lineHeights: { ...defaultTokens.lineHeights, ...(inputTheme?.lineHeights ?? {}) } as any,
+    fontWeights: { ...defaultTokens.fontWeights, ...(inputTheme?.fontWeights ?? {}) } as any,
+    letterSpacing: { ...defaultTokens.letterSpacing, ...(inputTheme?.letterSpacing ?? {}) } as any,
+    borderWidths: { ...defaultTokens.borderWidths, ...(inputTheme?.borderWidths ?? {}) } as any,
+    durations: { ...defaultTokens.durations, ...(inputTheme?.durations ?? {}) } as any,
   };
 
   // Store the color scheme for ThemeProvider access
-  const colorScheme = inputTheme?.colors as ColorSchemeConfig<D> | undefined;
+  const colorScheme = colorSchemeConfig;
 
   // Create a stable theme cache per createNVA instance
   const instanceCache = new Map<object, Map<string, Base<string>>>();

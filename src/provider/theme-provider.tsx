@@ -28,16 +28,14 @@ export type ThemeMode = ColorScheme | "system";
  * @template T - The colors type
  */
 export interface ThemeContextValue<T extends Record<string, string>> {
-  /** Current color scheme (resolved from mode) */
-  colorScheme: ColorScheme;
-  /** Current theme mode setting */
-  mode: ThemeMode;
+  /** Current theme mode: "light", "dark", or "system" */
+  theme: ThemeMode;
   /** Whether dark mode is active */
   isDark: boolean;
   /** Current theme colors based on color scheme */
   colors: T;
   /** Set theme mode */
-  setMode: (mode: ThemeMode) => void;
+  setTheme: (mode: ThemeMode) => void;
   /** Toggle between light and dark (ignores system) */
   toggle: () => void;
 }
@@ -54,7 +52,7 @@ export interface ThemeProviderProps<T extends Record<string, string>> {
   /** Child components */
   children: React.ReactNode;
   /**
-   * Color scheme configuration with default (light) and dark colors.
+   * Color scheme configuration with default (light) and optional dark colors.
    * Get this from createNVA's colorScheme output.
    *
    * @example
@@ -76,10 +74,17 @@ export interface ThemeProviderProps<T extends Record<string, string>> {
   colors: ColorSchemeConfig<T>;
   /** Initial theme mode (default: "system") */
   defaultMode?: ThemeMode;
-  /** Custom storage get function for persisting theme preference */
-  onGetStorage?: () => Promise<ThemeMode | null>;
-  /** Custom storage set function for persisting theme preference */
-  onSetStorage?: (mode: ThemeMode) => Promise<void>;
+  /** Storage key for persisting theme preference (default: "native-variants-theme") */
+  storageKey?: string;
+}
+
+// Try to load AsyncStorage - it's optional
+let AsyncStorage: any = null;
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  AsyncStorage = require("@react-native-async-storage/async-storage").default;
+} catch {
+  // AsyncStorage not available - storage will be disabled
 }
 
 /**
@@ -101,6 +106,12 @@ function resolveColorScheme(
  *
  * **Important:** This provider requires colors to be passed explicitly.
  * Get colors from createNVA's colorScheme output.
+ *
+ * Storage is handled automatically via @react-native-async-storage/async-storage
+ * if it's installed. Install it to enable theme persistence:
+ * ```bash
+ * npm install @react-native-async-storage/async-storage
+ * ```
  *
  * @template T - The colors type
  *
@@ -127,15 +138,15 @@ function resolveColorScheme(
  * // 2. Wrap your app with ThemeProvider
  * function App() {
  *   return (
- *     <ThemeProvider colors={colorScheme}>
+ *     <ThemeProvider colors={colorScheme} defaultMode="system">
  *       <MyApp />
  *     </ThemeProvider>
  *   );
  * }
  *
- * // 3. Use colors in components
+ * // 3. Use theme in components
  * function MyComponent() {
- *   const { colors, isDark, toggle } = useTheme();
+ *   const { colors, isDark, toggle, theme, setTheme } = useTheme();
  *
  *   return (
  *     <View style={{ backgroundColor: colors.background }}>
@@ -143,92 +154,84 @@ function resolveColorScheme(
  *         {isDark ? "Dark Mode" : "Light Mode"}
  *       </Text>
  *       <Button onPress={toggle} title="Toggle" />
+ *       <Button onPress={() => setTheme("system")} title="System" />
  *     </View>
  *   );
  * }
- *
- * // With AsyncStorage persistence
- * import AsyncStorage from "@react-native-async-storage/async-storage";
- *
- * <ThemeProvider
- *   colors={colorScheme}
- *   defaultMode="system"
- *   onGetStorage={async () => {
- *     const mode = await AsyncStorage.getItem("theme-mode");
- *     return mode as ThemeMode | null;
- *   }}
- *   onSetStorage={async (mode) => {
- *     await AsyncStorage.setItem("theme-mode", mode);
- *   }}
- * >
- *   <App />
- * </ThemeProvider>
  * ```
  */
 export function ThemeProvider<T extends Record<string, string>>({
   children,
   colors,
   defaultMode = "system",
-  onGetStorage,
-  onSetStorage,
+  storageKey = "native-variants-theme",
 }: ThemeProviderProps<T>) {
   const [mode, setModeState] = useState<ThemeMode>(defaultMode);
   const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(
     Appearance.getColorScheme(),
   );
-  const [isHydrated, setIsHydrated] = useState(!onGetStorage);
+  const [isHydrated, setIsHydrated] = useState(!AsyncStorage);
 
   // Load persisted mode on mount
   useEffect(() => {
-    if (onGetStorage) {
-      onGetStorage().then((storedMode) => {
-        if (storedMode) {
-          setModeState(storedMode);
-        }
-        setIsHydrated(true);
-      });
+    if (AsyncStorage) {
+      AsyncStorage.getItem(storageKey)
+        .then((storedMode: ThemeMode | null) => {
+          if (storedMode && (storedMode === "light" || storedMode === "dark" || storedMode === "system")) {
+            setModeState(storedMode);
+          }
+          setIsHydrated(true);
+        })
+        .catch(() => {
+          setIsHydrated(true);
+        });
     }
-  }, [onGetStorage]);
+  }, [storageKey]);
 
   // Listen to system color scheme changes
   useEffect(() => {
-    const subscription = Appearance.addChangeListener(({ colorScheme }) => {
+    const subscription = Appearance.addChangeListener(({ colorScheme }: { colorScheme: ColorSchemeName }) => {
       setSystemScheme(colorScheme);
     });
 
     return () => subscription.remove();
   }, []);
 
-  // Set mode with optional persistence
-  const setMode = useCallback(
+  // Set mode with automatic persistence
+  const setTheme = useCallback(
     (newMode: ThemeMode) => {
       setModeState(newMode);
-      if (onSetStorage) {
-        onSetStorage(newMode);
+      if (AsyncStorage) {
+        AsyncStorage.setItem(storageKey, newMode).catch(() => {
+          // Silently ignore storage errors
+        });
       }
     },
-    [onSetStorage],
+    [storageKey],
   );
 
   // Toggle between light and dark
   const toggle = useCallback(() => {
     const currentScheme = resolveColorScheme(mode, systemScheme);
     const newMode: ColorScheme = currentScheme === "light" ? "dark" : "light";
-    setMode(newMode);
-  }, [mode, systemScheme, setMode]);
+    setTheme(newMode);
+  }, [mode, systemScheme, setTheme]);
 
   // Compute context value
   const value = useMemo<ThemeContextValue<T>>(() => {
     const colorScheme = resolveColorScheme(mode, systemScheme);
+    // Use dark colors if available and in dark mode, otherwise use default
+    const currentColors = (colorScheme === "dark" && colors.dark) 
+      ? colors.dark 
+      : colors.default;
     return {
-      colorScheme,
-      mode,
+      theme: mode,
       isDark: colorScheme === "dark",
-      colors: (colorScheme === "dark" ? colors.dark : colors.default) as T,
-      setMode,
+      colors: currentColors as T,
+      setTheme,
       toggle,
     };
-  }, [mode, systemScheme, colors, setMode, toggle]);
+  }, [mode, systemScheme, colors, setTheme, toggle]);
 
   // Don't render until hydrated to prevent flash
   if (!isHydrated) {
@@ -246,6 +249,13 @@ export function ThemeProvider<T extends Record<string, string>>({
  * Hook to access theme context.
  * Must be used within a ThemeProvider.
  *
+ * Returns all theme values and controls:
+ * - theme: Current theme mode ("light" | "dark" | "system")
+ * - isDark: Boolean indicating if dark mode is active
+ * - colors: Current theme colors (reactive to mode changes)
+ * - setTheme: Function to set theme mode
+ * - toggle: Function to toggle between light and dark
+ *
  * @template T - The colors type
  * @returns Theme context value with colors and controls
  * @throws Error if used outside ThemeProvider
@@ -253,15 +263,15 @@ export function ThemeProvider<T extends Record<string, string>>({
  * @example
  * ```tsx
  * function MyComponent() {
- *   const { colors, isDark, toggle, setMode } = useTheme<MyColors>();
+ *   const { theme, colors, isDark, toggle, setTheme } = useTheme<MyColors>();
  *
  *   return (
  *     <View style={{ backgroundColor: colors.background }}>
  *       <Text style={{ color: colors.foreground }}>
- *         Current mode: {isDark ? "Dark" : "Light"}
+ *         Current mode: {theme} ({isDark ? "Dark" : "Light"})
  *       </Text>
  *       <Button onPress={toggle} title="Toggle Theme" />
- *       <Button onPress={() => setMode("system")} title="Use System" />
+ *       <Button onPress={() => setTheme("system")} title="Use System" />
  *     </View>
  *   );
  * }
@@ -278,126 +288,4 @@ export function useTheme<T extends Record<string, string>>(): ThemeContextValue<
   }
 
   return context as ThemeContextValue<T>;
-}
-
-/**
- * Hook to access only theme colors.
- * Convenience wrapper around useTheme that returns just the colors.
- *
- * @template T - The colors type
- * @returns Current theme colors
- *
- * @example
- * ```tsx
- * function MyComponent() {
- *   const colors = useThemeColors<MyColors>();
- *
- *   return (
- *     <View style={{ backgroundColor: colors.background }}>
- *       <Text style={{ color: colors.primary }}>Hello</Text>
- *     </View>
- *   );
- * }
- * ```
- */
-export function useThemeColors<T extends Record<string, string>>(): T {
-  const { colors } = useTheme<T>();
-  return colors;
-}
-
-/**
- * Hook to check if dark mode is active.
- * Convenience wrapper for quick dark mode checks.
- *
- * @returns Boolean indicating if dark mode is active
- *
- * @example
- * ```tsx
- * function MyComponent() {
- *   const isDark = useIsDark();
- *
- *   return (
- *     <Image source={isDark ? darkLogo : lightLogo} />
- *   );
- * }
- * ```
- */
-export function useIsDark(): boolean {
-  const { isDark } = useTheme();
-  return isDark;
-}
-
-/**
- * Hook to get the current color scheme.
- * Returns "light" or "dark" based on current theme.
- *
- * @returns Current color scheme
- *
- * @example
- * ```tsx
- * function MyComponent() {
- *   const colorScheme = useColorScheme();
- *
- *   return (
- *     <StatusBar barStyle={colorScheme === "dark" ? "light-content" : "dark-content"} />
- *   );
- * }
- * ```
- */
-export function useColorScheme(): ColorScheme {
-  const { colorScheme } = useTheme();
-  return colorScheme;
-}
-
-/**
- * Creates a themed style helper that automatically uses current theme colors.
- * Useful for creating styled components with theme access.
- *
- * @template T - The colors type
- * @template S - The styles record type
- * @param styleFactory - Function that receives colors and returns styles
- * @returns Hook that returns computed styles
- *
- * @example
- * ```tsx
- * type MyColors = { card: string; border: string; cardForeground: string };
- *
- * const useCardStyles = createThemedStyles<MyColors, {
- *   container: ViewStyle;
- *   title: TextStyle;
- * }>((colors) => ({
- *   container: {
- *     backgroundColor: colors.card,
- *     borderColor: colors.border,
- *     borderWidth: 1,
- *     borderRadius: 8,
- *     padding: 16,
- *   },
- *   title: {
- *     color: colors.cardForeground,
- *     fontSize: 18,
- *     fontWeight: "600",
- *   },
- * }));
- *
- * function Card({ title, children }) {
- *   const styles = useCardStyles();
- *
- *   return (
- *     <View style={styles.container}>
- *       <Text style={styles.title}>{title}</Text>
- *       {children}
- *     </View>
- *   );
- * }
- * ```
- */
-export function createThemedStyles<
-  T extends Record<string, string>,
-  S extends Record<string, object>,
->(styleFactory: (colors: T) => S): () => S {
-  return function useThemedStyles(): S {
-    const { colors } = useTheme<T>();
-    return useMemo(() => styleFactory(colors), [colors]);
-  };
 }

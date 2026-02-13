@@ -43,5 +43,10 @@
     "react-native": ">=0.78",
     "@types/react": ">=18"
   },
+  "peerDependenciesMeta": {
+    "@react-native-async-storage/async-storage": {
+      "optional": true
+    }
+  },
   "packageManager": "yarn@1.22.22"
 }

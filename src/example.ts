@@ -1,6 +1,7 @@
 import { createNVA } from "./lib/create-nva";
 
-const { styled, theme,  utils } = createNVA({
+// Example 1: Structured colors with dark mode
+const { styled, theme, colorScheme, utils } = createNVA({
   theme: {
     colors: {
       default: {
@@ -13,6 +14,20 @@ const { styled, theme,  utils } = createNVA({
         background: "#000000",
         foreground: "#ffffff",
       },
+    },
+    // Optional: Override default spacing
+    spacing: {
+      xs: 4,
+      sm: 8,
+      md: 16,
+      lg: 24,
+      xl: 32,
+    },
+    // Optional: Add custom font sizes
+    fontSizes: {
+      caption: 12,
+      body: 14,
+      heading: 24,
     },
   },
   utils: {
@@ -44,6 +59,17 @@ const { styled, theme,  utils } = createNVA({
       borderWidth: value,
       borderStyle: "solid" as const,
     }),
+  },
+});
+
+// Example 2: Flat colors (no dark mode)
+const { styled: styledFlat, theme: themeFlat } = createNVA({
+  theme: {
+    colors: {
+      primary: "#3b82f6",
+      secondary: "#8b5cf6",
+      background: "#ffffff",
+    },
   },
 });
 
@@ -120,11 +146,32 @@ const combined = buttonVariants({ size: "sm", square: false });
 console.log(combined.root);
 
 
-// ✅ Theme with all Tailwind tokens + your colors
-console.log(theme.colors.primary); // "#3b82f6"
+// ✅ Theme with all tokens + custom overrides
+console.log(theme.colors.primary); // "#3b82f6" (custom)
 console.log(theme.colors.blue500); // "#3b82f6" (from Tailwind)
-console.log(theme.spacing["4"]); // 16
-console.log(theme.fontSizes.lg); // 18
+console.log((theme.spacing as any).md); // 16 (custom override)
+console.log(theme.spacing["4"]); // 16 (from Tailwind)
+console.log((theme.fontSizes as any).heading); // 24 (custom)
+console.log(theme.fontSizes.lg); // 18 (from Tailwind)
 
 // ✅ Utils exported for use outside styled
 console.log(utils.mx(10)); // { marginLeft: 10, marginRight: 10 }
+
+// ✅ colorScheme ready for ThemeProvider
+console.log(colorScheme); // { default: {...}, dark: {...} }
+
+// Example usage with ThemeProvider:
+// import { ThemeProvider, useTheme } from "native-variants";
+// 
+// <ThemeProvider colors={colorScheme} defaultMode="system">
+//   <App />
+// </ThemeProvider>
+//
+// function MyComponent() {
+//   const { theme, colors, isDark, toggle, setTheme } = useTheme();
+//   // theme: "light" | "dark" | "system"
+//   // colors: reactive colors that change with theme
+//   // isDark: boolean
+//   // toggle: () => void - toggles between light/dark
+//   // setTheme: (mode) => void - sets theme mode
+// }

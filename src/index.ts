@@ -17,10 +17,6 @@ export { createCTX } from "./provider/create-provider";
 export {
   ThemeProvider,
   useTheme,
-  useThemeColors,
-  useIsDark,
-  useColorScheme,
-  createThemedStyles,
 } from "./provider/theme-provider";
 
 export type {

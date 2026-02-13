@@ -145,24 +145,29 @@ export type VariantProps<T extends (...args: any[]) => any> = T extends (
 
 /**
  * Color scheme configuration with default (light) and dark variants.
- * Both variants must have exactly the same keys for type safety.
+ * Dark variant is optional - if not provided, only light mode is supported.
  *
  * @template T - The color keys type
  *
  * @example
  * ```ts
- * // TypeScript will error if dark is missing keys from default or vice versa
+ * // With dark mode
  * const colors = {
  *   default: { primary: "#000", background: "#fff" },
- *   dark: { primary: "#fff", background: "#000" } // Must have same keys!
+ *   dark: { primary: "#fff", background: "#000" }
+ * };
+ * 
+ * // Without dark mode (same colors for both)
+ * const colors = {
+ *   default: { primary: "#000", background: "#fff" }
  * };
  * ```
  */
 export type ColorSchemeConfig<T extends Record<string, string>> = {
   /** Light theme colors (default) */
   default: T;
-  /** Dark theme colors - must have exactly the same keys as default */
-  dark: T;
+  /** Dark theme colors (optional) - if not provided, uses default colors */
+  dark?: T;
 };
 
 /**
