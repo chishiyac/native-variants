@@ -144,7 +144,7 @@ export type VariantProps<T extends (...args: any[]) => any> = T extends (
 // ============================================================================
 
 /**
- * Color scheme configuration with default (light) and dark variants.
+ * Color scheme configuration with light and dark variants.
  * Dark variant is optional - if not provided, only light mode is supported.
  *
  * @template T - The color keys type
@@ -153,35 +153,48 @@ export type VariantProps<T extends (...args: any[]) => any> = T extends (
  * ```ts
  * // With dark mode
  * const colors = {
- *   default: { primary: "#000", background: "#fff" },
+ *   light: { primary: "#000", background: "#fff" },
  *   dark: { primary: "#fff", background: "#000" }
  * };
  * 
  * // Without dark mode (same colors for both)
  * const colors = {
- *   default: { primary: "#000", background: "#fff" }
+ *   light: { primary: "#000", background: "#fff" }
  * };
  * ```
  */
 export type ColorSchemeConfig<T extends Record<string, string>> = {
-  /** Light theme colors (default) */
-  default: T;
-  /** Dark theme colors (optional) - if not provided, uses default colors */
+  /** Light theme colors */
+  light: T;
+  /** Dark theme colors (optional) - if not provided, uses light colors */
   dark?: T;
 };
 
 /**
  * Input type for colors in createNVA theme.
- * Ensures both default and dark have identical keys.
+ * Supports light/dark theme colors plus standalone colors.
  *
- * @template D - Default colors type
- * @template K - Dark colors type (must match default keys)
+ * @template L - Light colors type
+ *
+ * @example
+ * ```ts
+ * {
+ *   light: { primary: "#000", background: "#fff" },
+ *   dark: { primary: "#fff", background: "#000" },
+ *   // Standalone colors (shared across themes)
+ *   black: "#000",
+ *   white: "#fff",
+ *   transparent: "transparent"
+ * }
+ * ```
  */
-export type ColorsInput<D extends Record<string, string>> = {
-  /** Light theme colors (default) */
-  default: D;
-  /** Dark theme colors - must have exactly the same keys as default */
-  dark: { [K in keyof D]: string };
+export type ColorsInput<L extends Record<string, string>> = {
+  /** Light theme colors */
+  light: L;
+  /** Dark theme colors - must have exactly the same keys as light */
+  dark: { [K in keyof L]: string };
+  /** Standalone colors (shared across all themes) */
+  [key: string]: string | L | { [K in keyof L]: string };
 };
 
 /**
@@ -189,20 +202,20 @@ export type ColorsInput<D extends Record<string, string>> = {
  * Use this when you want TypeScript to error if either side is missing keys.
  */
 export type StrictColorsInput<
-  D extends Record<string, string>,
-  K extends Record<string, string>
-> = [keyof D] extends [keyof K]
-  ? [keyof K] extends [keyof D]
-    ? { default: D; dark: K }
-    : { default: D; dark: "Error: dark is missing keys from default" }
-  : { default: "Error: default is missing keys from dark"; dark: K };
+  L extends Record<string, string>,
+  D extends Record<string, string>
+> = [keyof L] extends [keyof D]
+  ? [keyof D] extends [keyof L]
+    ? { light: L; dark: D }
+    : { light: L; dark: "Error: dark is missing keys from light" }
+  : { light: "Error: light is missing keys from dark"; dark: D };
 
 /**
  * Theme input configuration for createNVA.
- * Colors support light/dark mode via default/dark keys.
+ * Colors support light/dark mode via light/dark keys plus standalone colors.
  * Extensible with custom token keys.
  *
- * @template C - Custom colors type (inferred from colors.default)
+ * @template C - Custom colors type (inferred from colors.light)
  * @template S - Spacing type
  * @template F - Font sizes type
  * @template R - Border radii type
@@ -229,7 +242,7 @@ export type ThemeInput<
   BW = any,
   D = any,
 > = {
-  /** Color scheme with default (light) and dark variants */
+  /** Color scheme with light and dark variants plus standalone colors */
   colors?: ColorsInput<C>;
   /** Spacing scale tokens */
   spacing?: S;

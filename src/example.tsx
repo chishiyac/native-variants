@@ -1,10 +1,11 @@
 import { createNVA } from "./lib/create-nva";
+import { ThemeProvider } from "./provider/theme-provider";
 
 // Example 1: Structured colors with dark mode
 const { styled, theme, colorScheme, utils } = createNVA({
   theme: {
     colors: {
-      default: {
+      light: {
         primary: "#3b82f6",
         background: "#ffffff",
         foreground: "#000000",
@@ -149,9 +150,9 @@ console.log(combined.root);
 // ✅ Theme with all tokens + custom overrides
 console.log(theme.colors.primary); // "#3b82f6" (custom)
 console.log(theme.colors.blue500); // "#3b82f6" (from Tailwind)
-console.log((theme.spacing as any).md); // 16 (custom override)
+console.log((theme.spacing).md); // 16 (custom override)
 console.log(theme.spacing["4"]); // 16 (from Tailwind)
-console.log((theme.fontSizes as any).heading); // 24 (custom)
+console.log((theme.fontSizes).heading); // 24 (custom)
 console.log(theme.fontSizes.lg); // 18 (from Tailwind)
 
 // ✅ Utils exported for use outside styled
@@ -175,3 +176,14 @@ console.log(colorScheme); // { default: {...}, dark: {...} }
 //   // toggle: () => void - toggles between light/dark
 //   // setTheme: (mode) => void - sets theme mode
 // }
+
+
+export default function Example() {
+  return (
+    <ThemeProvider theme={colorScheme}>
+      <div>
+        Click Me!
+      </div>
+    </ThemeProvider>
+  );
+}

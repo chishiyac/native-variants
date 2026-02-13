@@ -327,34 +327,25 @@ const defaultTokens = {
   durations: tailwindDurations,
 } as const;
 
-/**
- * Validates that two record types have the same keys.
- * Returns true type if valid, error message type if not.
- */
-type ValidateColorKeys<
-  D extends Record<string, string>,
-  K extends Record<string, string>
-> = Exclude<keyof K, keyof D> extends never
-  ? Exclude<keyof D, keyof K> extends never
-    ? true
-    : { _error: "⚠️ 'dark' is missing colors that exist in 'default'"; missingInDark: Exclude<keyof D, keyof K> }
-  : { _error: "⚠️ 'default' is missing colors that exist in 'dark'"; missingInDefault: Exclude<keyof K, keyof D> };
 
 /**
- * Extracts default colors from theme configuration.
+ * Extracts light colors from theme configuration.
  */
-type ExtractDefaultColors<T> = T extends { colors: { default: infer D extends Record<string, string> } }
-  ? D
-  : T extends { colors: infer C extends Record<string, string> }
-  ? C
+type ExtractLightColors<T> = T extends { colors: { light: infer L extends Record<string, string> } }
+  ? L
   : {};
 
 /**
- * Extracts dark colors from theme configuration.
+ * Extracts standalone colors (top-level string values in colors object).
  */
-type ExtractDarkColors<T> = T extends { colors: { dark: infer K extends Record<string, string> } }
-  ? K
-  : never;
+type ExtractStandaloneColors<T> = T extends { colors: infer C }
+  ? { [K in keyof C as C[K] extends string ? K : never]: C[K] & string }
+  : {};
+
+/**
+ * Extracts default colors from theme configuration (light + standalone).
+ */
+type ExtractDefaultColors<T> = ExtractLightColors<T> & ExtractStandaloneColors<T>;
 
 /**
  * Known theme token keys that are handled explicitly.
@@ -386,15 +377,17 @@ interface CreateNVAThemeConstraint {
   /** 
    * Colors configuration. Can be:
    * - Flat object: { primary: "#000", background: "#fff" } (no dark mode)
-   * - Structured: { default: {...}, dark?: {...} } (with optional dark mode)
+   * - Structured: { light: {...}, dark?: {...}, ...standalone } (with optional dark mode and standalone colors)
    */
   colors?:
     | Record<string, string>
     | {
-        /** Light theme colors (default) */
-        default: Record<string, string>;
-        /** Dark theme colors (optional) - should have the same keys as default */
+        /** Light theme colors */
+        light: Record<string, string>;
+        /** Dark theme colors (optional) - should have the same keys as light */
         dark?: Record<string, string>;
+        /** Standalone colors (shared across all themes) */
+        [key: string]: string | Record<string, string> | undefined;
       };
   /** Spacing scale tokens (merged with Tailwind defaults) */
   spacing?: Record<string, number>;
@@ -553,9 +546,9 @@ function expandCompoundUtils<S extends string, V extends Variants<S>, U extends 
  * Creates a themed NVA (Native Variants API) instance.
  * Provides a styled function with access to theme tokens and custom utils.
  *
- * Colors support light/dark mode via `default` and `dark` keys.
- * Both must have the same color keys for type safety - TypeScript will
- * error if dark is missing any keys from default or vice versa.
+ * Colors support light/dark mode via `light` and `dark` keys, plus standalone colors.
+ * Both light and dark must have the same color keys for type safety - TypeScript will
+ * error if dark is missing any keys from light or vice versa.
  *
  * Utils are style shortcuts that expand to multiple CSS properties.
  * They work like Stitches utils - you define them once and use them
@@ -567,7 +560,7 @@ function expandCompoundUtils<S extends string, V extends Variants<S>, U extends 
  * @template U - Utils configuration type
  *
  * @param options - Configuration options
- * @param options.theme - Theme configuration with colors (default/dark) and tokens
+ * @param options.theme - Theme configuration with colors (light/dark) and tokens
  * @param options.utils - Custom style utilities (like Stitches)
  * @returns An object containing the flattened theme, styled function, and utils
  *
@@ -576,7 +569,7 @@ function expandCompoundUtils<S extends string, V extends Variants<S>, U extends 
  * const { styled, theme, colorScheme, utils } = createNVA({
  *   theme: {
  *     colors: {
- *       default: {
+ *       light: {
  *         primary: "#007AFF",
  *         background: "#FFFFFF",
  *       },
@@ -584,6 +577,10 @@ function expandCompoundUtils<S extends string, V extends Variants<S>, U extends 
  *         primary: "#0A84FF",
  *         background: "#000000",
  *       },
+ *       // Standalone colors (shared across themes)
+ *       black: "#000000",
+ *       white: "#FFFFFF",
+ *       transparent: "transparent",
  *     },
  *     fontSizes: {
  *       xxs: 10,
@@ -634,36 +631,54 @@ export function createNVA<
 
   // Extract default and dark colors from theme config
   type DefaultColors = ExtractDefaultColors<T>;
-  type DarkColors = ExtractDarkColors<T>;
 
-  // Helper to detect if colors is structured (has default/dark) or flat
-  function isStructuredColors(colors: any): colors is { default: Record<string, string>; dark?: Record<string, string> } {
-    return colors && typeof colors === "object" && "default" in colors;
+  // Helper to detect if colors is structured (has light/dark) or flat
+  function isStructuredColors(colors: any): colors is { light: Record<string, string>; dark?: Record<string, string> } {
+    return colors && typeof colors === "object" && "light" in colors;
+  }
+
+  // Helper to extract standalone colors (top-level string values)
+  function extractStandaloneColors(colors: any): Record<string, string> {
+    const standalone: Record<string, string> = {};
+    if (colors && typeof colors === "object") {
+      for (const key in colors) {
+        if (key !== "light" && key !== "dark" && typeof colors[key] === "string") {
+          standalone[key] = colors[key];
+        }
+      }
+    }
+    return standalone;
   }
 
   // Extract colors - handle both flat and structured formats
   let userColors: Record<string, string>;
-  let colorSchemeConfig: ColorSchemeConfig<Record<string, string>> | undefined;
+  let colorSchemeConfig: ColorSchemeConfig<Record<string, string>>;
 
   if (inputTheme?.colors) {
     if (isStructuredColors(inputTheme.colors)) {
-      // Structured: { default: {...}, dark?: {...} }
-      userColors = inputTheme.colors.default;
+      // Structured: { light: {...}, dark?: {...}, standalone... }
+      const standaloneColors = extractStandaloneColors(inputTheme.colors);
+      userColors = { ...inputTheme.colors.light, ...standaloneColors };
       colorSchemeConfig = {
-        default: inputTheme.colors.default,
-        dark: inputTheme.colors.dark,
+        light: { ...inputTheme.colors.light, ...standaloneColors },
+        dark: inputTheme.colors.dark 
+          ? { ...inputTheme.colors.dark, ...standaloneColors }
+          : undefined,
       };
     } else {
       // Flat: { primary: "#000", ... }
       userColors = inputTheme.colors as Record<string, string>;
       colorSchemeConfig = {
-        default: inputTheme.colors as Record<string, string>,
+        light: inputTheme.colors as Record<string, string>,
         dark: inputTheme.colors as Record<string, string>, // Use same colors for dark mode
       };
     }
   } else {
     userColors = {};
-    colorSchemeConfig = undefined;
+    colorSchemeConfig = {
+      light: {},
+      dark: undefined,
+    };
   }
 
   // Merge user colors with Tailwind colors (user colors override defaults)
@@ -842,7 +857,7 @@ export function createNVA<
           colors: themeOverride,
         } as ResolvedTheme;
 
-        const recomputedConfig = (configOrFactory as Function)(defineConfig, overriddenTheme);
+        const recomputedConfig = (configOrFactory)(defineConfig, overriddenTheme);
         
         // Expand utils for the recomputed config
         const recomputedBase = expandBaseUtils(recomputedConfig.base as BaseWithUtils<S, U>, inputUtils);
@@ -944,12 +959,12 @@ export function createNVA<
   return {
     /**
      * The resolved theme object with flattened colors.
-     * Colors use the default (light) scheme.
+     * Colors use the light scheme by default.
      * Use ThemeProvider to access dark mode colors.
      */
     theme: resolvedTheme,
     /**
-     * The color scheme configuration with both default and dark colors.
+     * The color scheme configuration with both light and dark colors.
      * Pass this to ThemeProvider for dark mode support.
      */
     colorScheme,

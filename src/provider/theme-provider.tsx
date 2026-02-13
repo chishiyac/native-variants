@@ -52,7 +52,7 @@ export interface ThemeProviderProps<T extends Record<string, string>> {
   /** Child components */
   children: React.ReactNode;
   /**
-   * Color scheme configuration with default (light) and optional dark colors.
+   * Color scheme configuration with light and optional dark colors.
    * Get this from createNVA's colorScheme output.
    *
    * @example
@@ -60,7 +60,7 @@ export interface ThemeProviderProps<T extends Record<string, string>> {
    * const { colorScheme } = createNVA({
    *   theme: {
    *     colors: {
-   *       default: { primary: "#000" },
+   *       light: { primary: "#000" },
    *       dark: { primary: "#fff" },
    *     },
    *   },
@@ -131,7 +131,7 @@ function resolveColorScheme(
  * const { theme, colorScheme, styled } = createNVA({
  *   theme: {
  *     colors: {
- *       default: {
+ *       light: {
  *         background: "#ffffff",
  *         foreground: "#000000",
  *         primary: "#3b82f6",
@@ -230,10 +230,10 @@ export function ThemeProvider<T extends Record<string, string>>({
   // Compute context value
   const value = useMemo<ThemeContextValue<T>>(() => {
     const colorScheme = resolveColorScheme(mode, systemScheme);
-    // Use dark colors if available and in dark mode, otherwise use default
+    // Use dark colors if available and in dark mode, otherwise use light
     const currentColors = (colorScheme === "dark" && colors.dark) 
       ? colors.dark 
-      : colors.default;
+      : colors.light;
     return {
       mode: mode,
       isDark: colorScheme === "dark",
