@@ -63,7 +63,7 @@ const { styled, theme, colorScheme, utils } = createNVA({
 });
 
 // Example 2: Flat colors (no dark mode)
-const { styled: styledFlat, theme: themeFlat } = createNVA({
+createNVA({
   theme: {
     colors: {
       primary: "#3b82f6",

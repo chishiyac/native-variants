@@ -22,6 +22,6 @@
   "tsc-alias": {
     "resolveFullPaths": true
   },
-  "include": ["src/native-variants/**/*.ts", "src/index.ts"],
+  "include": ["src/**/*.ts", "src/**/*.tsx"],
   "exclude": ["node_modules", "dist", "docs", ".husky", "run"]
 }

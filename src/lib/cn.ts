@@ -55,7 +55,7 @@ function flattenStyle<T>(style: StyleProp<T> | null | undefined): T[] {
           // Handle nested arrays
           const nested = flattenStyle(item as StyleProp<T>);
           for (let j = 0; j < nested.length; j++) {
-            result.push(nested[j]);
+            result.push(nested[j] as T);
           }
         } else {
           result.push(item as T);

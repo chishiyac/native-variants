@@ -1,35 +1,33 @@
+import {
+  tailwindBorderWidths,
+  tailwindColors,
+  tailwindDurations,
+  tailwindFontSizes,
+  tailwindFontWeights,
+  tailwindLetterSpacing,
+  tailwindLineHeights,
+  tailwindOpacity,
+  tailwindRadii,
+  tailwindShadows,
+  tailwindSpacing,
+  tailwindZIndex,
+} from "../tokens/default-tokens";
 import type {
   Base,
   BaseWithUtils,
   ColorSchemeConfig,
-  ColorsInput,
   CompoundVariant,
   CompoundVariantWithUtils,
   Config,
   ConfigWithUtils,
   DefaultVariants,
   DefaultVariantsWithUtils,
-  DefineConfig,
   Styles,
   StylesWithUtils,
   UtilsConfig,
   Variants,
-  VariantsWithUtils,
+  VariantsWithUtils
 } from "../types";
-import {
-  tailwindColors,
-  tailwindSpacing,
-  tailwindFontSizes,
-  tailwindRadii,
-  tailwindShadows,
-  tailwindZIndex,
-  tailwindOpacity,
-  tailwindLineHeights,
-  tailwindFontWeights,
-  tailwindLetterSpacing,
-  tailwindBorderWidths,
-  tailwindDurations,
-} from "../tokens/default-tokens";
 
 /**
  * High-performance memoization cache using WeakMap for object keys
@@ -328,11 +326,6 @@ const defaultTokens = {
   /** @see https://tailwindcss.com/docs/transition-duration */
   durations: tailwindDurations,
 } as const;
-
-/**
- * Type for the default tokens object.
- */
-type DefaultTokens = typeof defaultTokens;
 
 /**
  * Validates that two record types have the same keys.

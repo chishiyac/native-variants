@@ -59,7 +59,7 @@ export function composeText(style?: Styles): Partial<TextStyle> {
   if (!style) return {};
 
   const result: Partial<TextStyle> = {};
-  const keys = Object.keys(style) as (keyof Styles)[];
+  const keys = Object.keys(style) as Array<Extract<keyof Styles, string>>;
 
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i];
@@ -121,7 +121,7 @@ export function composeView(style?: Styles): Styles {
   if (!style) return {};
 
   const result: Styles = {};
-  const keys = Object.keys(style) as (keyof Styles)[];
+  const keys = Object.keys(style) as Array<Extract<keyof Styles, string>>;
 
   for (let i = 0; i < keys.length; i++) {
     const key = keys[i];

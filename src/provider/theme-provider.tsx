@@ -79,10 +79,20 @@ export interface ThemeProviderProps<T extends Record<string, string>> {
 }
 
 // Try to load AsyncStorage - it's optional
-let AsyncStorage: any = null;
+type AsyncStorageLike = {
+  getItem: (key: string) => Promise<string | null>;
+  setItem: (key: string, value: string) => Promise<void>;
+};
+
+let AsyncStorage: AsyncStorageLike | null = null;
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  AsyncStorage = require("@react-native-async-storage/async-storage").default;
+  const maybeRequire = (globalThis as { require?: (id: string) => unknown }).require;
+  if (typeof maybeRequire === "function") {
+    const storageModule = maybeRequire(
+      "@react-native-async-storage/async-storage",
+    ) as { default?: AsyncStorageLike };
+    AsyncStorage = storageModule.default ?? null;
+  }
 } catch {
   // AsyncStorage not available - storage will be disabled
 }
@@ -92,7 +102,7 @@ try {
  */
 function resolveColorScheme(
   mode: ThemeMode,
-  systemScheme: ColorSchemeName,
+  systemScheme: ColorSchemeName | null,
 ): ColorScheme {
   if (mode === "system") {
     return systemScheme === "dark" ? "dark" : "light";
@@ -167,8 +177,8 @@ export function ThemeProvider<T extends Record<string, string>>({
   storageKey = "native-variants-theme",
 }: ThemeProviderProps<T>) {
   const [mode, setModeState] = useState<ThemeMode>(defaultMode);
-  const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(
-    Appearance.getColorScheme(),
+  const [systemScheme, setSystemScheme] = useState<ColorSchemeName | null>(
+    Appearance.getColorScheme() ?? null,
   );
   const [isHydrated, setIsHydrated] = useState(!AsyncStorage);
 
@@ -176,7 +186,7 @@ export function ThemeProvider<T extends Record<string, string>>({
   useEffect(() => {
     if (AsyncStorage) {
       AsyncStorage.getItem(storageKey)
-        .then((storedMode: ThemeMode | null) => {
+        .then((storedMode: string | null) => {
           if (storedMode && (storedMode === "light" || storedMode === "dark" || storedMode === "system")) {
             setModeState(storedMode);
           }
@@ -190,7 +200,7 @@ export function ThemeProvider<T extends Record<string, string>>({
 
   // Listen to system color scheme changes
   useEffect(() => {
-    const subscription = Appearance.addChangeListener(({ colorScheme }: { colorScheme: ColorSchemeName }) => {
+    const subscription = Appearance.addChangeListener(({ colorScheme }: { colorScheme: ColorSchemeName | null }) => {
       setSystemScheme(colorScheme);
     });
 
