@@ -29,11 +29,11 @@ export type ThemeMode = ColorScheme | "system";
  */
 export interface ThemeContextValue<T extends Record<string, string>> {
   /** Current theme mode: "light", "dark", or "system" */
-  theme: ThemeMode;
+  mode: ThemeMode;
   /** Whether dark mode is active */
   isDark: boolean;
   /** Current theme colors based on color scheme */
-  colors: T;
+  theme: T;
   /** Set theme mode */
   setTheme: (mode: ThemeMode) => void;
   /** Toggle between light and dark (ignores system) */
@@ -66,12 +66,12 @@ export interface ThemeProviderProps<T extends Record<string, string>> {
    *   },
    * });
    *
-   * <ThemeProvider colors={colorScheme}>
+   * <ThemeProvider theme={colorScheme}>
    *   <App />
    * </ThemeProvider>
    * ```
    */
-  colors: ColorSchemeConfig<T>;
+  theme: ColorSchemeConfig<T>;
   /** Initial theme mode (default: "system") */
   defaultMode?: ThemeMode;
   /** Storage key for persisting theme preference (default: "native-variants-theme") */
@@ -114,8 +114,8 @@ function resolveColorScheme(
  * ThemeProvider component.
  * Provides theme context with dark/light mode support.
  *
- * **Important:** This provider requires colors to be passed explicitly.
- * Get colors from createNVA's colorScheme output.
+ * **Important:** This provider requires theme colors to be passed explicitly.
+ * Get theme from createNVA's colorScheme output.
  *
  * Storage is handled automatically via @react-native-async-storage/async-storage
  * if it's installed. Install it to enable theme persistence:
@@ -148,7 +148,7 @@ function resolveColorScheme(
  * // 2. Wrap your app with ThemeProvider
  * function App() {
  *   return (
- *     <ThemeProvider colors={colorScheme} defaultMode="system">
+ *     <ThemeProvider theme={colorScheme} defaultMode="system">
  *       <MyApp />
  *     </ThemeProvider>
  *   );
@@ -156,11 +156,11 @@ function resolveColorScheme(
  *
  * // 3. Use theme in components
  * function MyComponent() {
- *   const { colors, isDark, toggle, theme, setTheme } = useTheme();
+ *   const { theme, isDark, toggle, mode, setTheme } = useTheme();
  *
  *   return (
- *     <View style={{ backgroundColor: colors.background }}>
- *       <Text style={{ color: colors.foreground }}>
+ *     <View style={{ backgroundColor: theme.background }}>
+ *       <Text style={{ color: theme.foreground }}>
  *         {isDark ? "Dark Mode" : "Light Mode"}
  *       </Text>
  *       <Button onPress={toggle} title="Toggle" />
@@ -172,7 +172,7 @@ function resolveColorScheme(
  */
 export function ThemeProvider<T extends Record<string, string>>({
   children,
-  colors,
+  theme: colors,
   defaultMode = "system",
   storageKey = "native-variants-theme",
 }: ThemeProviderProps<T>) {
@@ -235,9 +235,9 @@ export function ThemeProvider<T extends Record<string, string>>({
       ? colors.dark 
       : colors.default;
     return {
-      theme: mode,
+      mode: mode,
       isDark: colorScheme === "dark",
-      colors: currentColors as T,
+      theme: currentColors as T,
       setTheme,
       toggle,
     };
@@ -260,9 +260,9 @@ export function ThemeProvider<T extends Record<string, string>>({
  * Must be used within a ThemeProvider.
  *
  * Returns all theme values and controls:
- * - theme: Current theme mode ("light" | "dark" | "system")
+ * - mode: Current theme mode ("light" | "dark" | "system")
  * - isDark: Boolean indicating if dark mode is active
- * - colors: Current theme colors (reactive to mode changes)
+ * - theme: Current theme colors (reactive to mode changes)
  * - setTheme: Function to set theme mode
  * - toggle: Function to toggle between light and dark
  *
@@ -273,12 +273,12 @@ export function ThemeProvider<T extends Record<string, string>>({
  * @example
  * ```tsx
  * function MyComponent() {
- *   const { theme, colors, isDark, toggle, setTheme } = useTheme<MyColors>();
+ *   const { mode, theme, isDark, toggle, setTheme } = useTheme<MyColors>();
  *
  *   return (
- *     <View style={{ backgroundColor: colors.background }}>
- *       <Text style={{ color: colors.foreground }}>
- *         Current mode: {theme} ({isDark ? "Dark" : "Light"})
+ *     <View style={{ backgroundColor: theme.background }}>
+ *       <Text style={{ color: theme.foreground }}>
+ *         Current mode: {mode} ({isDark ? "Dark" : "Light"})
  *       </Text>
  *       <Button onPress={toggle} title="Toggle Theme" />
  *       <Button onPress={() => setTheme("system")} title="Use System" />
@@ -293,7 +293,7 @@ export function useTheme<T extends Record<string, string>>(): ThemeContextValue<
   if (!context) {
     throw new Error(
       "useTheme must be used within a ThemeProvider. " +
-        "Make sure to wrap your app with <ThemeProvider colors={colorScheme}>.",
+        "Make sure to wrap your app with <ThemeProvider theme={colorScheme}>.",
     );
   }
 

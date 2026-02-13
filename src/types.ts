@@ -200,6 +200,7 @@ export type StrictColorsInput<
 /**
  * Theme input configuration for createNVA.
  * Colors support light/dark mode via default/dark keys.
+ * Extensible with custom token keys.
  *
  * @template C - Custom colors type (inferred from colors.default)
  * @template S - Spacing type
@@ -209,6 +210,10 @@ export type StrictColorsInput<
  * @template Z - Z-index type
  * @template O - Opacity type
  * @template L - Line heights type
+ * @template FW - Font weights type
+ * @template LS - Letter spacing type
+ * @template BW - Border widths type
+ * @template D - Durations type
  */
 export type ThemeInput<
   C extends Record<string, string> = Record<string, string>,
@@ -219,6 +224,10 @@ export type ThemeInput<
   Z = any,
   O = any,
   L = any,
+  FW = any,
+  LS = any,
+  BW = any,
+  D = any,
 > = {
   /** Color scheme with default (light) and dark variants */
   colors?: ColorsInput<C>;
@@ -236,11 +245,22 @@ export type ThemeInput<
   opacity?: O;
   /** Line height scale tokens */
   lineHeights?: L;
+  /** Font weight scale tokens */
+  fontWeights?: FW;
+  /** Letter spacing scale tokens */
+  letterSpacing?: LS;
+  /** Border width scale tokens */
+  borderWidths?: BW;
+  /** Animation duration scale tokens */
+  durations?: D;
+  /** Allow custom token keys (like breakpoints, etc.) */
+  [key: string]: any;
 };
 
 /**
  * Resolved theme output from createNVA.
  * Colors are flattened (default scheme is used directly).
+ * Extensible with custom token keys.
  *
  * @template C - Custom colors type
  * @template S - Spacing type
@@ -250,6 +270,10 @@ export type ThemeInput<
  * @template Z - Z-index type
  * @template O - Opacity type
  * @template L - Line heights type
+ * @template FW - Font weights type
+ * @template LS - Letter spacing type
+ * @template BW - Border widths type
+ * @template D - Durations type
  */
 export type ThemeOutput<
   C extends Record<string, string> = Record<string, string>,
@@ -260,6 +284,10 @@ export type ThemeOutput<
   Z = any,
   O = any,
   L = any,
+  FW = any,
+  LS = any,
+  BW = any,
+  D = any,
 > = {
   /** Flattened colors (uses default/light scheme) */
   colors: C;
@@ -277,6 +305,16 @@ export type ThemeOutput<
   opacity: O;
   /** Line height scale tokens */
   lineHeights: L;
+  /** Font weight scale tokens */
+  fontWeights: FW;
+  /** Letter spacing scale tokens */
+  letterSpacing: LS;
+  /** Border width scale tokens */
+  borderWidths: BW;
+  /** Animation duration scale tokens */
+  durations: D;
+  /** Allow custom token keys (like breakpoints, etc.) */
+  [key: string]: any;
 };
 
 /**
@@ -292,6 +330,10 @@ export type Theme<
   Z = any,
   O = any,
   L = any,
+  FW = any,
+  LS = any,
+  BW = any,
+  D = any,
 > = {
   colors?: C;
   spacing?: S;
@@ -301,6 +343,12 @@ export type Theme<
   zIndex?: Z;
   opacity?: O;
   lineHeights?: L;
+  fontWeights?: FW;
+  letterSpacing?: LS;
+  borderWidths?: BW;
+  durations?: D;
+  /** Allow custom token keys (like breakpoints, etc.) */
+  [key: string]: any;
 };
 
 // ============================================================================

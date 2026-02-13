@@ -341,24 +341,61 @@ type ValidateColorKeys<
   : { _error: "⚠️ 'default' is missing colors that exist in 'dark'"; missingInDefault: Exclude<keyof K, keyof D> };
 
 /**
- * Theme configuration input for createNVA.
- * Colors must have matching keys in default and dark.
+ * Extracts default colors from theme configuration.
  */
-interface CreateNVATheme<
-  D extends Record<string, string>,
-  K extends Record<string, string>,
-> {
+type ExtractDefaultColors<T> = T extends { colors: { default: infer D extends Record<string, string> } }
+  ? D
+  : T extends { colors: infer C extends Record<string, string> }
+  ? C
+  : {};
+
+/**
+ * Extracts dark colors from theme configuration.
+ */
+type ExtractDarkColors<T> = T extends { colors: { dark: infer K extends Record<string, string> } }
+  ? K
+  : never;
+
+/**
+ * Known theme token keys that are handled explicitly.
+ */
+type KnownThemeKeys = 
+  | "colors"
+  | "spacing"
+  | "fontSizes"
+  | "radii"
+  | "shadows"
+  | "zIndex"
+  | "opacity"
+  | "lineHeights"
+  | "fontWeights"
+  | "letterSpacing"
+  | "borderWidths"
+  | "durations";
+
+/**
+ * Extracts custom theme keys (anything not in the predefined set).
+ */
+type ExtractCustomTokens<T> = Omit<T, KnownThemeKeys>;
+
+/**
+ * Base constraint for theme configuration.
+ * Allows any keys, but enforces types for known keys.
+ */
+interface CreateNVAThemeConstraint {
   /** 
    * Colors configuration. Can be:
    * - Flat object: { primary: "#000", background: "#fff" } (no dark mode)
    * - Structured: { default: {...}, dark?: {...} } (with optional dark mode)
    */
-  colors?: D | {
-    /** Light theme colors (default) */
-    default: D;
-    /** Dark theme colors (optional) - should have the same keys as default */
-    dark?: ValidateColorKeys<D, K> extends true ? K : ValidateColorKeys<D, K>;
-  };
+  colors?:
+    | Record<string, string>
+    | {
+        /** Light theme colors (default) */
+        default: Record<string, string>;
+        /** Dark theme colors (optional) - should have the same keys as default */
+        dark?: Record<string, string>;
+      };
   /** Spacing scale tokens (merged with Tailwind defaults) */
   spacing?: Record<string, number>;
   /** Font size scale tokens (merged with Tailwind defaults) */
@@ -381,6 +418,8 @@ interface CreateNVATheme<
   borderWidths?: Record<string, number>;
   /** Animation duration scale tokens (merged with Tailwind defaults) */
   durations?: Record<string, number>;
+  /** Allow any custom keys */
+  [key: string]: any;
 }
 
 /**
@@ -524,12 +563,11 @@ function expandCompoundUtils<S extends string, V extends Variants<S>, U extends 
  *
  * Tailwind CSS tokens (spacing, fontSizes, radii, etc.) are included by default.
  *
- * @template D - Default colors type (inferred from colors.default)
- * @template K - Dark colors type (must have same keys as D)
+ * @template T - Theme configuration type (inferred, preserves literal types)
  * @template U - Utils configuration type
  *
  * @param options - Configuration options
- * @param options.theme - Theme configuration with colors (default/dark)
+ * @param options.theme - Theme configuration with colors (default/dark) and tokens
  * @param options.utils - Custom style utilities (like Stitches)
  * @returns An object containing the flattened theme, styled function, and utils
  *
@@ -546,6 +584,14 @@ function expandCompoundUtils<S extends string, V extends Variants<S>, U extends 
  *         primary: "#0A84FF",
  *         background: "#000000",
  *       },
+ *     },
+ *     fontSizes: {
+ *       xxs: 10,
+ *       xs: 12,
+ *     },
+ *     breakpoints: {
+ *       sm: 640,
+ *       md: 768,
  *     },
  *   },
  *   utils: {
@@ -566,6 +612,7 @@ function expandCompoundUtils<S extends string, V extends Variants<S>, U extends 
  *   base: {
  *     root: {
  *       backgroundColor: t.colors.primary,
+ *       fontSize: t.fontSizes.xxs, // ← Type-safe! xxs is inferred
  *       px: 16,  // → paddingLeft: 16, paddingRight: 16
  *       py: 12,  // → paddingTop: 12, paddingBottom: 12
  *     },
@@ -574,17 +621,20 @@ function expandCompoundUtils<S extends string, V extends Variants<S>, U extends 
  * ```
  */
 export function createNVA<
-  D extends Record<string, string>,
-  K extends Record<string, string> = D,
+  const T extends CreateNVAThemeConstraint,
   U extends UtilsConfig = {}
 >(
   options?: {
-    theme?: CreateNVATheme<D, K>;
+    theme?: T;
     utils?: U;
   },
 ) {
   const inputTheme = options?.theme;
   const inputUtils = (options?.utils ?? {}) as U;
+
+  // Extract default and dark colors from theme config
+  type DefaultColors = ExtractDefaultColors<T>;
+  type DarkColors = ExtractDarkColors<T>;
 
   // Helper to detect if colors is structured (has default/dark) or flat
   function isStructuredColors(colors: any): colors is { default: Record<string, string>; dark?: Record<string, string> } {
@@ -592,27 +642,27 @@ export function createNVA<
   }
 
   // Extract colors - handle both flat and structured formats
-  let userColors: D;
-  let colorSchemeConfig: ColorSchemeConfig<D> | undefined;
+  let userColors: Record<string, string>;
+  let colorSchemeConfig: ColorSchemeConfig<Record<string, string>> | undefined;
 
   if (inputTheme?.colors) {
     if (isStructuredColors(inputTheme.colors)) {
       // Structured: { default: {...}, dark?: {...} }
-      userColors = inputTheme.colors.default as D;
+      userColors = inputTheme.colors.default;
       colorSchemeConfig = {
-        default: inputTheme.colors.default as D,
-        dark: inputTheme.colors.dark as D | undefined,
+        default: inputTheme.colors.default,
+        dark: inputTheme.colors.dark,
       };
     } else {
       // Flat: { primary: "#000", ... }
-      userColors = inputTheme.colors as D;
+      userColors = inputTheme.colors as Record<string, string>;
       colorSchemeConfig = {
-        default: inputTheme.colors as D,
-        dark: inputTheme.colors as D, // Use same colors for dark mode
+        default: inputTheme.colors as Record<string, string>,
+        dark: inputTheme.colors as Record<string, string>, // Use same colors for dark mode
       };
     }
   } else {
-    userColors = {} as D;
+    userColors = {};
     colorSchemeConfig = undefined;
   }
 
@@ -620,53 +670,62 @@ export function createNVA<
   const mergedColors = {
     ...defaultTokens.palette,
     ...userColors,
-  } as typeof tailwindColors & D;
+  };
 
-  // Build the resolved theme with defaults
+  // Build the resolved theme with defaults and user overrides
+  // Each token category merges Tailwind defaults with user values
+  // Using Omit to remove conflicting keys, then merging to avoid 'never' type conflicts
   type ResolvedTheme = {
     /** 
      * Colors: User-defined semantic colors merged with Tailwind palette.
      * User colors override Tailwind colors if keys conflict.
      */
-    colors: typeof tailwindColors & D;
+    colors: Omit<typeof tailwindColors, keyof DefaultColors> & DefaultColors;
     /** Spacing scale (0, px, 0.5, 1, 2, 4, 8, etc.) - user overrides merged */
-    spacing: typeof tailwindSpacing & (CreateNVATheme<D, K>["spacing"] extends Record<string, number> ? CreateNVATheme<D, K>["spacing"] : {});
+    spacing: Omit<typeof tailwindSpacing, T extends { spacing: infer S } ? keyof S : never> & (T extends { spacing: infer S } ? S : {});
     /** Font size scale (xs, sm, base, lg, xl, 2xl, etc.) - user overrides merged */
-    fontSizes: typeof tailwindFontSizes & (CreateNVATheme<D, K>["fontSizes"] extends Record<string, number> ? CreateNVATheme<D, K>["fontSizes"] : {});
+    fontSizes: Omit<typeof tailwindFontSizes, T extends { fontSizes: infer F } ? keyof F : never> & (T extends { fontSizes: infer F } ? F : {});
     /** Border radius scale (none, sm, md, lg, xl, full, etc.) - user overrides merged */
-    radii: typeof tailwindRadii & (CreateNVATheme<D, K>["radii"] extends Record<string, number> ? CreateNVATheme<D, K>["radii"] : {});
+    radii: Omit<typeof tailwindRadii, T extends { radii: infer R } ? keyof R : never> & (T extends { radii: infer R } ? R : {});
     /** Shadow definitions for iOS and Android - user overrides merged */
-    shadows: typeof tailwindShadows & (CreateNVATheme<D, K>["shadows"] extends Record<string, any> ? CreateNVATheme<D, K>["shadows"] : {});
+    shadows: Omit<typeof tailwindShadows, T extends { shadows: infer SH } ? keyof SH : never> & (T extends { shadows: infer SH } ? SH : {});
     /** Z-index scale (0, 10, 20, 30, 40, 50) - user overrides merged */
-    zIndex: typeof tailwindZIndex & (CreateNVATheme<D, K>["zIndex"] extends Record<string, number> ? CreateNVATheme<D, K>["zIndex"] : {});
+    zIndex: Omit<typeof tailwindZIndex, T extends { zIndex: infer Z } ? keyof Z : never> & (T extends { zIndex: infer Z } ? Z : {});
     /** Opacity scale (0, 5, 10, ..., 95, 100) - user overrides merged */
-    opacity: typeof tailwindOpacity & (CreateNVATheme<D, K>["opacity"] extends Record<string, number> ? CreateNVATheme<D, K>["opacity"] : {});
+    opacity: Omit<typeof tailwindOpacity, T extends { opacity: infer O } ? keyof O : never> & (T extends { opacity: infer O } ? O : {});
     /** Line height scale (3, 4, ..., 10, none, tight, normal, etc.) - user overrides merged */
-    lineHeights: typeof tailwindLineHeights & (CreateNVATheme<D, K>["lineHeights"] extends Record<string, number | string> ? CreateNVATheme<D, K>["lineHeights"] : {});
+    lineHeights: Omit<typeof tailwindLineHeights, T extends { lineHeights: infer L } ? keyof L : never> & (T extends { lineHeights: infer L } ? L : {});
     /** Font weight scale (thin, light, normal, medium, bold, etc.) - user overrides merged */
-    fontWeights: typeof tailwindFontWeights & (CreateNVATheme<D, K>["fontWeights"] extends Record<string, string> ? CreateNVATheme<D, K>["fontWeights"] : {});
+    fontWeights: Omit<typeof tailwindFontWeights, T extends { fontWeights: infer FW } ? keyof FW : never> & (T extends { fontWeights: infer FW } ? FW : {});
     /** Letter spacing scale (tighter, tight, normal, wide, wider, widest) - user overrides merged */
-    letterSpacing: typeof tailwindLetterSpacing & (CreateNVATheme<D, K>["letterSpacing"] extends Record<string, number> ? CreateNVATheme<D, K>["letterSpacing"] : {});
+    letterSpacing: Omit<typeof tailwindLetterSpacing, T extends { letterSpacing: infer LS } ? keyof LS : never> & (T extends { letterSpacing: infer LS } ? LS : {});
     /** Border width scale (0, DEFAULT, 2, 4, 8) - user overrides merged */
-    borderWidths: typeof tailwindBorderWidths & (CreateNVATheme<D, K>["borderWidths"] extends Record<string, number> ? CreateNVATheme<D, K>["borderWidths"] : {});
+    borderWidths: Omit<typeof tailwindBorderWidths, T extends { borderWidths: infer BW } ? keyof BW : never> & (T extends { borderWidths: infer BW } ? BW : {});
     /** Animation duration scale (0, 75, 100, 150, 200, 300, 500, 700, 1000) - user overrides merged */
-    durations: typeof tailwindDurations & (CreateNVATheme<D, K>["durations"] extends Record<string, number> ? CreateNVATheme<D, K>["durations"] : {});
-  };
+    durations: Omit<typeof tailwindDurations, T extends { durations: infer D } ? keyof D : never> & (T extends { durations: infer D } ? D : {});
+  } & ExtractCustomTokens<T>;
 
-  const resolvedTheme: ResolvedTheme = {
+  const resolvedTheme = {
     colors: mergedColors,
-    spacing: { ...defaultTokens.spacing, ...(inputTheme?.spacing ?? {}) } as any,
-    fontSizes: { ...defaultTokens.fontSizes, ...(inputTheme?.fontSizes ?? {}) } as any,
-    radii: { ...defaultTokens.radii, ...(inputTheme?.radii ?? {}) } as any,
-    shadows: { ...defaultTokens.shadows, ...(inputTheme?.shadows ?? {}) } as any,
-    zIndex: { ...defaultTokens.zIndex, ...(inputTheme?.zIndex ?? {}) } as any,
-    opacity: { ...defaultTokens.opacity, ...(inputTheme?.opacity ?? {}) } as any,
-    lineHeights: { ...defaultTokens.lineHeights, ...(inputTheme?.lineHeights ?? {}) } as any,
-    fontWeights: { ...defaultTokens.fontWeights, ...(inputTheme?.fontWeights ?? {}) } as any,
-    letterSpacing: { ...defaultTokens.letterSpacing, ...(inputTheme?.letterSpacing ?? {}) } as any,
-    borderWidths: { ...defaultTokens.borderWidths, ...(inputTheme?.borderWidths ?? {}) } as any,
-    durations: { ...defaultTokens.durations, ...(inputTheme?.durations ?? {}) } as any,
-  };
+    spacing: { ...defaultTokens.spacing, ...(inputTheme?.spacing ?? {}) },
+    fontSizes: { ...defaultTokens.fontSizes, ...(inputTheme?.fontSizes ?? {}) },
+    radii: { ...defaultTokens.radii, ...(inputTheme?.radii ?? {}) },
+    shadows: { ...defaultTokens.shadows, ...(inputTheme?.shadows ?? {}) },
+    zIndex: { ...defaultTokens.zIndex, ...(inputTheme?.zIndex ?? {}) },
+    opacity: { ...defaultTokens.opacity, ...(inputTheme?.opacity ?? {}) },
+    lineHeights: { ...defaultTokens.lineHeights, ...(inputTheme?.lineHeights ?? {}) },
+    fontWeights: { ...defaultTokens.fontWeights, ...(inputTheme?.fontWeights ?? {}) },
+    letterSpacing: { ...defaultTokens.letterSpacing, ...(inputTheme?.letterSpacing ?? {}) },
+    borderWidths: { ...defaultTokens.borderWidths, ...(inputTheme?.borderWidths ?? {}) },
+    durations: { ...defaultTokens.durations, ...(inputTheme?.durations ?? {}) },
+    // Spread any custom tokens (like breakpoints) that aren't in the predefined set
+    ...Object.keys(inputTheme ?? {}).reduce((acc, key) => {
+      if (!["colors", "spacing", "fontSizes", "radii", "shadows", "zIndex", "opacity", "lineHeights", "fontWeights", "letterSpacing", "borderWidths", "durations"].includes(key)) {
+        (acc as any)[key] = (inputTheme as any)[key];
+      }
+      return acc;
+    }, {} as ExtractCustomTokens<T>),
+  } as unknown as ResolvedTheme;
 
   // Store the color scheme for ThemeProvider access
   const colorScheme = colorSchemeConfig;
@@ -699,7 +758,7 @@ export function createNVA<
     const V extends VariantsWithUtils<S, U>
   >(
     config: ConfigWithUtils<S, V, U>,
-  ): (props?: DefaultVariantsWithUtils<S, V, U>) => Base<S>;
+  ): (props?: DefaultVariantsWithUtils<S, V, U> & { theme?: Record<string, string> }) => Base<S>;
 
   /**
    * @overload Factory function with theme access
@@ -714,7 +773,7 @@ export function createNVA<
       defineConfig: DefineConfigWithUtils,
       theme: ResolvedTheme,
     ) => ConfigWithUtils<S, V, U>,
-  ): (props?: DefaultVariantsWithUtils<S, V, U>) => Base<S>;
+  ): (props?: DefaultVariantsWithUtils<S, V, U> & { theme?: Record<string, string> }) => Base<S>;
 
   function styled<
     const S extends string,
@@ -726,15 +785,19 @@ export function createNVA<
           defineConfig: DefineConfigWithUtils,
           theme: ResolvedTheme,
         ) => ConfigWithUtils<S, V, U>),
-  ): (props?: DefaultVariantsWithUtils<S, V, U>) => Base<S> {
+  ): (props?: DefaultVariantsWithUtils<S, V, U> & { theme?: Record<string, string> }) => Base<S> {
     const defineConfig: DefineConfigWithUtils = (config) => config;
 
+    // For factory functions, we need to store it for re-evaluation with theme override
+    const isFactory = typeof configOrFactory === "function";
+    
+    // Compute initial config with default theme
     const configWithUtils =
-      typeof configOrFactory === "function"
+      isFactory
         ? configOrFactory(defineConfig, resolvedTheme)
         : configOrFactory;
 
-    // Expand utils in all style configurations
+    // Expand utils in all style configurations (for non-factory or default theme)
     const base = expandBaseUtils(configWithUtils.base as BaseWithUtils<S, U>, inputUtils);
     const variants = expandVariantsUtils<S, U>(
       configWithUtils.variants as VariantsWithUtils<S, U>,
@@ -754,10 +817,84 @@ export function createNVA<
     // Create stable reference for this specific styled call
     const configRef = { id: Symbol() };
 
+    // Theme override cache: WeakMap<themeObject, Map<variantKey, styles>>
+    const themeOverrideCache = new WeakMap<object, Map<string, Base<string>>>();
+
     return function computeStyles(
-      props?: DefaultVariantsWithUtils<S, V, U>,
+      props?: DefaultVariantsWithUtils<S, V, U> & { theme?: Record<string, string> },
     ): Base<S> {
-      const cacheKey = createCacheKey(props as Record<string, unknown>);
+      // Extract theme prop if provided
+      const { theme: themeOverride, ...variantProps } = props ?? {};
+
+      // If theme override is provided and we have a factory function, re-evaluate
+      if (themeOverride && isFactory) {
+        const cacheKey = createCacheKey(variantProps as Record<string, unknown>);
+
+        // Check theme override cache
+        let themeCache = themeOverrideCache.get(themeOverride);
+        if (themeCache?.has(cacheKey)) {
+          return themeCache.get(cacheKey) as Base<S>;
+        }
+
+        // Re-evaluate factory with overridden colors
+        const overriddenTheme = {
+          ...resolvedTheme,
+          colors: themeOverride,
+        } as ResolvedTheme;
+
+        const recomputedConfig = (configOrFactory as Function)(defineConfig, overriddenTheme);
+        
+        // Expand utils for the recomputed config
+        const recomputedBase = expandBaseUtils(recomputedConfig.base as BaseWithUtils<S, U>, inputUtils);
+        const recomputedVariants = expandVariantsUtils<S, U>(
+          recomputedConfig.variants as VariantsWithUtils<S, U>,
+          inputUtils,
+        );
+        const recomputedCompoundVariants = expandCompoundUtils<S, Variants<S>, U>(
+          recomputedConfig.compoundVariants as CompoundVariantWithUtils<S, VariantsWithUtils<S, U>, U>[],
+          inputUtils,
+        );
+
+        // Resolve props with defaults
+        const resolvedProps: Record<string, unknown> = {
+          ...(recomputedConfig.defaultVariants as Record<string, unknown> ?? {}),
+        };
+
+        if (variantProps) {
+          for (const key in variantProps) {
+            const value = (variantProps as Record<string, unknown>)[key];
+            if (value !== undefined && key !== "theme") {
+              resolvedProps[key] = value;
+            }
+          }
+        }
+
+        // Compute styles for each slot
+        const result = {} as Record<S, Styles>;
+
+        for (let i = 0; i < frozenSlots.length; i++) {
+          const slot = frozenSlots[i];
+          result[slot] = computeSlotStyles(
+            slot,
+            recomputedBase as Base<S>,
+            recomputedVariants,
+            recomputedCompoundVariants as CompoundVariant<S, Variants<S>>[],
+            resolvedProps,
+          );
+        }
+
+        // Store in theme cache
+        if (!themeCache) {
+          themeCache = new Map();
+          themeOverrideCache.set(themeOverride, themeCache);
+        }
+        themeCache.set(cacheKey, result as Base<string>);
+
+        return result;
+      }
+
+      // Default path: no theme override or non-factory config
+      const cacheKey = createCacheKey(variantProps as Record<string, unknown>);
 
       // Check instance cache
       let configCache = instanceCache.get(configRef);
@@ -770,9 +907,9 @@ export function createNVA<
         ...(defaultVariants as Record<string, unknown>),
       };
 
-      if (props) {
-        for (const key in props) {
-          const value = (props as Record<string, unknown>)[key];
+      if (variantProps) {
+        for (const key in variantProps) {
+          const value = (variantProps as Record<string, unknown>)[key];
           if (value !== undefined) {
             resolvedProps[key] = value;
           }
