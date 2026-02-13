@@ -1,6 +1,6 @@
 {
   "name": "native-variants",
-  "version": "0.1.72",
+  "version": "0.1.73",
   "description": "A library for handling variants in React Native components with theme support.",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
